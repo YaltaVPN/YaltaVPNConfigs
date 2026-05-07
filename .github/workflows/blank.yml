@@ -1,0 +1,46 @@
+name: Update Proxy List
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 * * * *' # Обновление каждый час
+  workflow_dispatch: # Кнопка для ручного запуска
+
+permissions:
+  contents: write # КРИТИЧЕСКИ ВАЖНО: Разрешение на запись файлов
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Run Parser Script
+        run: python parser.py
+
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@://github.com"
+          
+          # Добавляем файлы, которые изменил скрипт
+          git add YaltaVPN - Subscription
+          
+          # Делаем коммит. Если изменений нет, скрипт просто пойдет дальше
+          git commit -m "🔄 Обновление подписок: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
+          
+          # Пушим изменения обратно в основную ветку
+          git push origin main
