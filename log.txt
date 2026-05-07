@@ -1,0 +1,39 @@
+HypSysSsiImpl impl ready!------ (setprop persist.sys.fboservice.ctrl true) in 600s ------
+[setprop: 0.121s elapsed]
+
+------ (setprop persist.sys.use_mi_new_strategy true) in 600s ------
+[setprop: 0.027s elapsed]
+
+------ (setprop persist.sys.smartop.support_dynamic_performance true) in 600s ------
+[setprop: 0.040s elapsed]
+
+------ (setprop persist.sys.miui_sptm.enable true) in 600s ------
+[setprop: 0.052s elapsed]
+
+------ (setprop persist.sys.periodic.enable true) in 600s ------
+[setprop: 0.057s elapsed]
+
+------ (setprop persist.sys.miui.sf_cores 6-7) in 600s ------
+[setprop: 0.037s elapsed]
+
+------ (setprop persist.sys.gc_booster.enable 1) in 600s ------
+[setprop: 0.035s elapsed]
+
+------ (setprop persist.sys.mem_fgated 1) in 600s ------
+[setprop: 0.045s elapsed]
+
+------ (setprop persist.sys.mem_cgated 1) in 600s ------
+[setprop: 0.040s elapsed]
+
+------ (setprop persist.sys.strictmode.disable true) in 600s ------
+[setprop: 0.062s elapsed]
+
+------ (setprop persist.sys.aries.power_profile high) in 600s ------
+[setprop: 0.040s elapsed]
+
+------ (setprop persist.sys.smart_gc.enable true) in 600s ------
+[setprop: 0.042s elapsed]
+
+------ (setprop persist.sys.power.default.powermode enhance) in 600s ------
+[setprop: 0.043s elapsed]
+
