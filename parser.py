@@ -207,7 +207,7 @@ def main():
     # Сохранение в файл (Base64)
     content = "\n".join(final_lines)
     b64 = base64.b64encode(content.encode("utf-8")).decode("utf-8")
-    filename = "YaltaVPN - Subscription.txt"
+    filename = "YaltaVPN - Subscription"
     with open(filename, "w", encoding="utf-8") as f:
         f.write(b64)
 
