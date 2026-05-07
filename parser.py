@@ -1,16 +1,16 @@
-import os
 import re
-import ipaddress
 import requests
-from datetime import datetime, timedelta
+import concurrent.futures
+import urllib.parse
+import base64
+import random
+from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 
-# ===================== ИСТОЧНИКИ =====================
+# ==========================================
+# SOURCES (замените на свои)
+# ==========================================
 SOURCES = [
-    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/WHITE-CIDR-RU-checked.txt",
-    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/Vless-Reality-White-Lists-Rus-Mobile.txt",
-    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/Vless-Reality-White-Lists-Rus-Mobile-2.txt",
-    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/WHITE-SNI-RU-all.txt",
     "https://raw.githubusercontent.com/whoahaow/rjsxrd/refs/heads/main/githubmirror/bypass/bypass-all.txt",
     "https://raw.githubusercontent.com/ShatakVPN/ConfigForge-V2Ray/main/configs/all.txt",
     "https://raw.githubusercontent.com/ShatakVPN/ConfigForge-V2Ray/main/configs/light.txt",
@@ -18,304 +18,200 @@ SOURCES = [
     "https://raw.githubusercontent.com/MahanKenway/Freedom-V2Ray/main/configs/mix.txt",
     "https://raw.githubusercontent.com/MahanKenway/Freedom-V2Ray/main/configs/vless.txt",
     "https://raw.githubusercontent.com/kort0881/vpn-checker-backend/main/checked/RU_Best/ru_white.txt",
-    "https://raw.githubusercontent.com/zieng2/wl/refs/heads/main/vless_lite.txt",
+    "https://raw.githubusercontent.com/zieng2/wl/refs/heads/main/vless_lite.txt"
 ]
-for i in range(1, 21):
-    SOURCES.append(
-        f"https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/{i}.txt"
+for i in range(1, 23):
+    SOURCES.append (
+        "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/{i}.txt"
     )
 
-# ===================== НАСТРОЙКИ =====================
-ALLOWED_CIDRS = []      # если пусто – без фильтрации IP
-WHITELISTED_SNI = []     # если пусто – без фильтрации SNI
-IS_PUBLIC = True         # влияет только на текст объявления
-
-FOLDER_NAME = "CatwhiteVPN"
-CONFIG_FILE = "configs.txt"
-LOG_FILE = "log.csv"
-BASE_DIR = os.path.join(os.getcwd(), FOLDER_NAME)
-os.makedirs(BASE_DIR, exist_ok=True)
-
-# ===================== СТРАНЫ =====================
-FLAG_TO_CODE = {
-    "🇦🇫": "AF", "🇦🇱": "AL", "🇩🇿": "DZ", "🇦🇩": "AD", "🇦🇴": "AO",
-    "🇦🇷": "AR", "🇦🇲": "AM", "🇦🇺": "AU", "🇦🇹": "AT", "🇦🇿": "AZ",
-    "🇧🇩": "BD", "🇧🇾": "BY", "🇧🇪": "BE", "🇧🇷": "BR", "🇧🇬": "BG",
-    "🇨🇦": "CA", "🇨🇳": "CN", "🇭🇷": "HR", "🇨🇺": "CU", "🇨🇾": "CY",
-    "🇨🇿": "CZ", "🇩🇰": "DK", "🇪🇬": "EG", "🇪🇪": "EE", "🇫🇮": "FI",
-    "🇫🇷": "FR", "🇬🇪": "GE", "🇩🇪": "DE", "🇬🇷": "GR", "🇭🇰": "HK",
-    "🇭🇺": "HU", "🇮🇸": "IS", "🇮🇳": "IN", "🇮🇩": "ID", "🇮🇷": "IR",
-    "🇮🇶": "IQ", "🇮🇪": "IE", "🇮🇱": "IL", "🇮🇹": "IT", "🇯🇵": "JP",
-    "🇰🇿": "KZ", "🇰🇪": "KE", "🇰🇼": "KW", "🇰🇬": "KG", "🇱🇻": "LV",
-    "🇱🇧": "LB", "🇱🇾": "LY", "🇱🇹": "LT", "🇱🇺": "LU", "🇲🇾": "MY",
-    "🇲🇽": "MX", "🇲🇩": "MD", "🇲🇳": "MN", "🇲🇪": "ME", "🇲🇦": "MA",
-    "🇳🇱": "NL", "🇳🇿": "NZ", "🇳🇬": "NG", "🇰🇵": "KP", "🇳🇴": "NO",
-    "🇵🇰": "PK", "🇵🇸": "PS", "🇵🇪": "PE", "🇵🇭": "PH", "🇵🇱": "PL",
-    "🇵🇹": "PT", "🇶🇦": "QA", "🇷🇴": "RO", "🇷🇺": "RU", "🇸🇦": "SA",
-    "🇷🇸": "RS", "🇸🇬": "SG", "🇸🇰": "SK", "🇸🇮": "SI", "🇿🇦": "ZA",
-    "🇰🇷": "KR", "🇪🇸": "ES", "🇸🇪": "SE", "🇨🇭": "CH", "🇹🇼": "TW",
-    "🇹🇯": "TJ", "🇹🇭": "TH", "🇹🇷": "TR", "🇹🇲": "TM", "🇺🇦": "UA",
-    "🇦🇪": "AE", "🇬🇧": "GB", "🇺🇸": "US", "🇺🇾": "UY", "🇺🇿": "UZ",
-    "🇻🇳": "VN",
+# ==========================================
+# БАЗА ФЛАГОВ
+# ==========================================
+FLAG_DB = {
+    "🇦🇨": "Ascension Island", "🇦🇩": "Andorra", "🇦🇪": "UAE", "🇦🇫": "Afghanistan",
+    "🇦🇬": "Antigua and Barbuda", "🇦🇮": "Anguilla", "🇦🇱": "Albania", "🇦🇲": "Armenia",
+    "🇦🇴": "Angola", "🇦🇶": "Antarctica", "🇦🇷": "Argentina", "🇦🇸": "American Samoa",
+    "🇦🇹": "Austria", "🇦🇺": "Australia", "🇦🇼": "Aruba", "🇦🇽": "Åland Islands",
+    "🇦🇿": "Azerbaijan", "🇧🇦": "Bosnia", "🇧🇧": "Barbados", "🇧🇩": "Bangladesh",
+    "🇧🇪": "Belgium", "🇧🇫": "Burkina Faso", "🇧🇬": "Bulgaria", "🇧🇭": "Bahrain",
+    "🇧🇮": "Burundi", "🇧🇯": "Benin", "🇧🇱": "St. Barthélemy", "🇧🇲": "Bermuda",
+    "🇧🇳": "Brunei", "🇧🇴": "Bolivia", "🇧🇶": "Caribbean Netherlands", "🇧🇷": "Brazil",
+    "🇧🇸": "Bahamas", "🇧🇹": "Bhutan", "🇧🇻": "Bouvet Island", "🇧🇼": "Botswana",
+    "🇧🇾": "Belarus", "🇧🇿": "Belize", "🇨🇦": "Canada", "🇨🇨": "Cocos Islands",
+    "🇨🇩": "DR Congo", "🇨🇫": "Central African Republic", "🇨🇬": "Congo", "🇨🇭": "Switzerland",
+    "🇨🇮": "Côte d'Ivoire", "🇨🇰": "Cook Islands", "🇨🇱": "Chile", "🇨🇲": "Cameroon",
+    "🇨🇳": "China", "🇨🇴": "Colombia", "🇨🇵": "Clipperton Island", "🇨🇷": "Costa Rica",
+    "🇨🇺": "Cuba", "🇨🇻": "Cape Verde", "🇨🇼": "Curaçao", "🇨🇽": "Christmas Island",
+    "🇨🇾": "Cyprus", "🇨🇿": "Czechia", "🇩🇪": "Germany", "🇩🇬": "Diego Garcia", "🇩🇯": "Djibouti",
+    "🇩🇰": "Denmark", "🇩🇲": "Dominica", "🇩🇴": "Dominican Republic", "🇩🇿": "Algeria",
+    "🇪🇦": "Ceuta & Melilla", "🇪🇨": "Ecuador", "🇪🇪": "Estonia", "🇪🇬": "Egypt",
+    "🇪🇭": "Western Sahara", "🇪🇷": "Eritrea", "🇪🇸": "Spain", "🇪🇹": "Ethiopia",
+    "🇪🇺": "European Union", "🇫🇮": "Finland", "🇫🇯": "Fiji", "🇫🇰": "Falkland Islands",
+    "🇫🇲": "Micronesia", "🇫🇴": "Faroe Islands", "🇫🇷": "France", "🇬🇦": "Gabon",
+    "🇬🇧": "UK", "🇬🇩": "Grenada", "🇬🇪": "Georgia", "🇬🇫": "French Guiana", "🇬🇬": "Guernsey",
+    "🇬🇭": "Ghana", "🇬🇮": "Gibraltar", "🇬🇱": "Greenland", "🇬🇲": "Gambia", "🇬🇳": "Guinea",
+    "🇬🇵": "Guadeloupe", "🇬🇶": "Equatorial Guinea", "🇬🇷": "Greece", "🇬🇸": "South Georgia",
+    "🇬🇹": "Guatemala", "🇬🇺": "Guam", "🇬🇼": "Guinea-Bissau", "🇬🇾": "Guyana",
+    "🇭🇰": "Hong Kong", "🇭🇲": "Heard & McDonald Islands", "🇭🇳": "Honduras", "🇭🇷": "Croatia",
+    "🇭🇹": "Haiti", "🇭🇺": "Hungary", "🇮🇨": "Canary Islands", "🇮🇩": "Indonesia",
+    "🇮🇪": "Ireland", "🇮🇱": "Israel", "🇮🇲": "Isle of Man", "🇮🇳": "India",
+    "🇮🇴": "British Indian Ocean Territory", "🇮🇶": "Iraq", "🇮🇷": "Iran", "🇮🇸": "Iceland",
+    "🇮🇹": "Italy", "🇯🇪": "Jersey", "🇯🇲": "Jamaica", "🇯🇴": "Jordan", "🇯🇵": "Japan",
+    "🇰🇪": "Kenya", "🇰🇬": "Kyrgyzstan", "🇰🇭": "Cambodia", "🇰🇮": "Kiribati",
+    "🇰🇲": "Comoros", "🇰🇳": "St. Kitts & Nevis", "🇰🇵": "North Korea", "🇰🇷": "South Korea",
+    "🇰🇼": "Kuwait", "🇰🇾": "Cayman Islands", "🇰🇿": "Kazakhstan", "🇱🇦": "Laos",
+    "🇱🇧": "Lebanon", "🇱🇨": "St. Lucia", "🇱🇮": "Liechtenstein", "🇱🇰": "Sri Lanka",
+    "🇱🇷": "Liberia", "🇱🇸": "Lesotho", "🇱🇹": "Lithuania", "🇱🇺": "Luxembourg",
+    "🇱🇻": "Latvia", "🇱🇾": "Libya", "🇲🇦": "Morocco", "🇲🇨": "Monaco", "🇲🇩": "Moldova",
+    "🇲🇪": "Montenegro", "🇲🇫": "St. Martin", "🇲🇬": "Madagascar", "🇲🇭": "Marshall Islands",
+    "🇲🇰": "North Macedonia", "🇲🇱": "Mali", "🇲🇲": "Myanmar", "🇲🇳": "Mongolia",
+    "🇲🇴": "Macau", "🇲🇵": "Northern Mariana Islands", "🇲🇶": "Martinique", "🇲🇷": "Mauritania",
+    "🇲🇸": "Montserrat", "🇲🇹": "Malta", "🇲🇺": "Mauritius", "🇲🇻": "Maldives",
+    "🇲🇼": "Malawi", "🇲🇽": "Mexico", "🇲🇾": "Malaysia", "🇲🇿": "Mozambique",
+    "🇳🇦": "Namibia", "🇳🇨": "New Caledonia", "🇳🇪": "Niger", "🇳🇫": "Norfolk Island",
+    "🇳🇬": "Nigeria", "🇳🇮": "Nicaragua", "🇳🇱": "Netherlands", "🇳🇴": "Norway",
+    "🇳🇵": "Nepal", "🇳🇷": "Nauru", "🇳🇺": "Niue", "🇳🇿": "New Zealand",
+    "🇴🇲": "Oman", "🇵🇦": "Panama", "🇵🇪": "Peru", "🇵🇫": "French Polynesia",
+    "🇵🇬": "Papua New Guinea", "🇵🇭": "Philippines", "🇵🇰": "Pakistan", "🇵🇱": "Poland",
+    "🇵🇲": "St. Pierre & Miquelon", "🇵🇳": "Pitcairn Islands", "🇵🇷": "Puerto Rico",
+    "🇵🇸": "Palestine", "🇵🇹": "Portugal", "🇵🇼": "Palau", "🇵🇾": "Paraguay",
+    "🇶🇦": "Qatar", "🇷🇪": "Réunion", "🇷🇴": "Romania", "🇷🇸": "Serbia", "🇷🇺": "Russia",
+    "🇷🇼": "Rwanda", "🇸🇦": "Saudi Arabia", "🇸🇧": "Solomon Islands", "🇸🇨": "Seychelles",
+    "🇸🇩": "Sudan", "🇸🇪": "Sweden", "🇸🇬": "Singapore", "🇸🇭": "St. Helena",
+    "🇸🇮": "Slovenia", "🇸🇯": "Svalbard & Jan Mayen", "🇸🇰": "Slovakia", "🇸🇱": "Sierra Leone",
+    "🇸🇲": "San Marino", "🇸🇳": "Senegal", "🇸🇴": "Somalia", "🇸🇷": "Suriname",
+    "🇸🇸": "South Sudan", "🇸🇹": "São Tomé & Príncipe", "🇸🇻": "El Salvador",
+    "🇸🇽": "Sint Maarten", "🇸🇾": "Syria", "🇸🇿": "Eswatini", "🇹🇦": "Tristan da Cunha",
+    "🇹🇨": "Turks & Caicos", "🇹🇩": "Chad", "🇹🇫": "French Southern Territories",
+    "🇹🇬": "Togo", "🇹🇭": "Thailand", "🇹🇯": "Tajikistan", "🇹🇰": "Tokelau",
+    "🇹🇱": "Timor-Leste", "🇹🇲": "Turkmenistan", "🇹🇳": "Tunisia", "🇹🇴": "Tonga",
+    "🇹🇷": "Turkey", "🇹🇹": "Trinidad & Tobago", "🇹🇻": "Tuvalu", "🇹🇼": "Taiwan",
+    "🇹🇿": "Tanzania", "🇺🇦": "Ukraine", "🇺🇬": "Uganda", "🇺🇲": "US Outlying Islands",
+    "🇺🇳": "United Nations", "🇺🇸": "USA", "🇺🇾": "Uruguay", "🇺🇿": "Uzbekistan",
+    "🇻🇦": "Vatican City", "🇻🇨": "St. Vincent & Grenadines", "🇻🇪": "Venezuela",
+    "🇻🇬": "British Virgin Islands", "🇻🇮": "US Virgin Islands", "🇻🇳": "Vietnam",
+    "🇻🇺": "Vanuatu", "🇼🇫": "Wallis & Futuna", "🇼🇸": "Samoa", "🇽🇰": "Kosovo",
+    "🇾🇪": "Yemen", "🇾🇹": "Mayotte", "🇿🇦": "South Africa", "🇿🇲": "Zambia", "🇿🇼": "Zimbabwe"
 }
 
-COUNTRY_NAMES = {
-    "россия": "RU", "russia": "RU", "russian": "RU", "ru": "RU",
-    "германия": "DE", "germany": "DE", "deutschland": "DE", "de": "DE",
-    "франция": "FR", "france": "FR", "fr": "FR",
-    "сша": "US", "usa": "US", "united states": "US", "us": "US",
-    "нидерланды": "NL", "netherlands": "NL", "holland": "NL", "nl": "NL",
-    "великобритания": "GB", "uk": "GB", "united kingdom": "GB", "gb": "GB",
-    "украина": "UA", "ukraine": "UA", "ua": "UA",
-    "польша": "PL", "poland": "PL", "pl": "PL",
-    "канада": "CA", "canada": "CA", "ca": "CA",
-    "италия": "IT", "italy": "IT", "it": "IT",
-    "испания": "ES", "spain": "ES", "es": "ES",
-    "швеция": "SE", "sweden": "SE", "se": "SE",
-    "норвегия": "NO", "norway": "NO", "no": "NO",
-    "финляндия": "FI", "finland": "FI", "fi": "FI",
-    "дания": "DK", "denmark": "DK", "dk": "DK",
-    "швейцария": "CH", "switzerland": "CH", "ch": "CH",
-    "австрия": "AT", "austria": "AT", "at": "AT",
-    "бельгия": "BE", "belgium": "BE", "be": "BE",
-    "япония": "JP", "japan": "JP", "jp": "JP",
-    "южная корея": "KR", "south korea": "KR", "korea": "KR", "kr": "KR",
-    "сингапур": "SG", "singapore": "SG", "sg": "SG",
-    "индия": "IN", "india": "IN", "in": "IN",
-    "бразилия": "BR", "brazil": "BR", "br": "BR",
-    "турция": "TR", "turkey": "TR", "türkiye": "TR", "tr": "TR",
-    "израиль": "IL", "israel": "IL", "il": "IL",
-    "оаэ": "AE", "uae": "AE", "arab emirates": "AE", "ae": "AE",
-    "китай": "CN", "china": "CN", "cn": "CN",
-    "гонконг": "HK", "hong kong": "HK", "hk": "HK",
-    "австралия": "AU", "australia": "AU", "au": "AU",
-    "казахстан": "KZ", "kazakhstan": "KZ", "kz": "KZ",
-    "латвия": "LV", "latvia": "LV", "lv": "LV",
-    "литва": "LT", "lithuania": "LT", "lt": "LT",
-    "эстония": "EE", "estonia": "EE", "ee": "EE",
-    "чехия": "CZ", "czech": "CZ", "czechia": "CZ", "cz": "CZ",
-    "словакия": "SK", "slovakia": "SK", "sk": "SK",
-    "венгрия": "HU", "hungary": "HU", "hu": "HU",
-    "румыния": "RO", "romania": "RO", "ro": "RO",
-    "болгария": "BG", "bulgaria": "BG", "bg": "BG",
-    "греция": "GR", "greece": "GR", "gr": "GR",
-    "португалия": "PT", "portugal": "PT", "pt": "PT",
-    "мексика": "MX", "mexico": "MX", "mx": "MX",
-    "аргентина": "AR", "argentina": "AR", "ar": "AR",
-    "чили": "CL", "chile": "CL", "cl": "CL",
-    "египет": "EG", "egypt": "EG", "eg": "EG",
-    "юар": "ZA", "south africa": "ZA", "za": "ZA",
-    "сербия": "RS", "serbia": "RS", "rs": "RS",
-    "хорватия": "HR", "croatia": "HR", "hr": "HR",
-    "словения": "SI", "slovenia": "SI", "si": "SI",
-    "люксембург": "LU", "luxembourg": "LU", "lu": "LU",
-    "кипр": "CY", "cyprus": "CY", "cy": "CY",
-    "мальта": "MT", "malta": "MT", "mt": "MT",
-    "исландия": "IS", "iceland": "IS", "is": "IS",
-    "монако": "MC", "monaco": "MC", "mc": "MC",
-    "лихтенштейн": "LI", "liechtenstein": "LI", "li": "LI",
-    "андорра": "AD", "andorra": "AD", "ad": "AD",
-}
+# ==========================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ==========================================
+def extract_host(link):
+    """Извлекает хост (IP или домен) из ссылки конфига."""
+    m = re.search(r'@([\w\.\-]+):', link)
+    return m.group(1) if m else None
 
-CODE_TO_RU = {
-    "AF": "Афганистан", "AL": "Албания", "DZ": "Алжир", "AD": "Андорра", "AO": "Ангола",
-    "AR": "Аргентина", "AM": "Армения", "AU": "Австралия", "AT": "Австрия", "AZ": "Азербайджан",
-    "BD": "Бангладеш", "BY": "Беларусь", "BE": "Бельгия", "BR": "Бразилия", "BG": "Болгария",
-    "CA": "Канада", "CN": "Китай", "HR": "Хорватия", "CU": "Куба", "CY": "Кипр",
-    "CZ": "Чехия", "DK": "Дания", "EG": "Египет", "EE": "Эстония", "FI": "Финляндия",
-    "FR": "Франция", "GE": "Грузия", "DE": "Германия", "GR": "Греция", "HK": "Гонконг",
-    "HU": "Венгрия", "IS": "Исландия", "IN": "Индия", "ID": "Индонезия", "IR": "Иран",
-    "IQ": "Ирак", "IE": "Ирландия", "IL": "Израиль", "IT": "Италия", "JP": "Япония",
-    "KZ": "Казахстан", "KE": "Кения", "KW": "Кувейт", "KG": "Киргизия", "LV": "Латвия",
-    "LB": "Ливан", "LY": "Ливия", "LT": "Литва", "LU": "Люксембург", "MY": "Малайзия",
-    "MX": "Мексика", "MD": "Молдова", "MN": "Монголия", "ME": "Черногория", "MA": "Марокко",
-    "NL": "Нидерланды", "NZ": "Новая Зеландия", "NG": "Нигерия", "KP": "Северная Корея", "NO": "Норвегия",
-    "PK": "Пакистан", "PS": "Палестина", "PE": "Перу", "PH": "Филиппины", "PL": "Польша",
-    "PT": "Португалия", "QA": "Катар", "RO": "Румыния", "RU": "Россия", "SA": "Саудовская Аравия",
-    "RS": "Сербия", "SG": "Сингапур", "SK": "Словакия", "SI": "Словения", "ZA": "ЮАР",
-    "KR": "Южная Корея", "ES": "Испания", "SE": "Швеция", "CH": "Швейцария", "TW": "Тайвань",
-    "TJ": "Таджикистан", "TH": "Таиланд", "TR": "Турция", "TM": "Туркменистан", "UA": "Украина",
-    "AE": "ОАЭ", "GB": "Великобритания", "US": "США", "UY": "Уругвай", "UZ": "Узбекистан",
-    "VN": "Вьетнам",
-}
-
-def code_to_flag(code):
-    if len(code) != 2:
-        return ""
-    return chr(ord(code[0]) + 0x1F1E6 - ord('A')) + chr(ord(code[1]) + 0x1F1E6 - ord('A'))
-
-# ------------------------------------------------------------------
-def ip_in_cidr(ip_str, cidr_str):
+def extract_sni(link):
+    """Извлекает значение параметра sni из URL конфига."""
     try:
-        return ipaddress.ip_address(ip_str) in ipaddress.ip_network(cidr_str, strict=False)
-    except ValueError:
-        return False
-
-def is_ip_allowed(ip_str):
-    if not ALLOWED_CIDRS:
-        return True
-    return any(ip_in_cidr(ip_str, cidr) for cidr in ALLOWED_CIDRS)
-
-def extract_sni(url, comment):
-    parsed = urlparse(url)
-    qs = parse_qs(parsed.query)
-    if 'sni' in qs:
-        return qs['sni'][0]
-    if parsed.hostname:
-        try:
-            ipaddress.ip_address(parsed.hostname)
-        except ValueError:
-            return parsed.hostname
-    return ""
-
-def is_whitelisted_sni(sni):
-    if not WHITELISTED_SNI:
-        return True
-    return sni in WHITELISTED_SNI
-
-def extract_ip_from_url(url):
-    parsed = urlparse(url)
-    host = parsed.hostname
-    if host:
-        try:
-            ipaddress.ip_address(host)
-            return host
-        except ValueError:
-            return None
-    return None
-
-def extract_flag_and_country(comment):
-    flag_match = re.findall(r'[\U0001F1E6-\U0001F1FF]{2}', comment)
-    if flag_match:
-        flag_emoji = flag_match[0]
-        if flag_emoji in FLAG_TO_CODE:
-            code = FLAG_TO_CODE[flag_emoji]
-            return flag_emoji, CODE_TO_RU.get(code, "🌐 Не определено")
-
-    code_match = re.search(r'\b([A-Z]{2})\b', comment)
-    if code_match:
-        code = code_match.group(1).upper()
-        if code in CODE_TO_RU:
-            return code_to_flag(code), CODE_TO_RU[code]
-
-    text_lower = comment.lower()
-    for name, code in COUNTRY_NAMES.items():
-        if name in text_lower:
-            return code_to_flag(code), CODE_TO_RU.get(code, "🌐 Не определено")
-
-    return "", "🌐 Не определено"
-
-def parse_config_line(line):
-    line = line.strip()
-    if not line:
+        base = link.split("#")[0]
+        qs = urlparse(base).query
+        sni = parse_qs(qs).get('sni', [None])[0]
+        return sni.lower() if sni else None
+    except:
         return None
 
-    url_part, comment = "", ""
-    if '#' in line:
-        url_part, comment = line.split('#', 1)
-        url_part = url_part.strip()
-        comment = comment.strip()
-    else:
-        url_part = line
+def get_flag_info(raw_fragment):
+    """Возвращает (флаг, страна) или ('🌐', 'Не определено') по наличию флага в строке."""
+    if not raw_fragment:
+        return "🌐", "Не определено"
+    flags = re.findall(r'[\U0001F1E6-\U0001F1FF]{2}', raw_fragment)
+    if flags:
+        flag = flags[0]
+        country = FLAG_DB.get(flag, "Unknown")
+        return flag, country
+    return "🌐", "Не определено"
 
-    if not any(url_part.startswith(p) for p in ('vless://', 'vmess://', 'trojan://', 'ss://')):
-        return None
-
-    flag, country = extract_flag_and_country(comment + ' ' + url_part)
-    sni = extract_sni(url_part, comment)
-    if not is_whitelisted_sni(sni):
-        return None
-
-    ip = extract_ip_from_url(url_part)
-    if ip and not is_ip_allowed(ip):
-        return None
-
-    new_name = f"{flag} {country} | SNI: {sni} | 🌴ЯлтаВПН".strip()
-    return {
-        "base_url": url_part,
-        "new_name": new_name,
-        "flag": flag,
-        "country": country,
-        "sni": sni,
-        "ip": ip
-    }
-
-def fetch_source(url):
+def parse_source(url):
+    """Скачивает конфиги из одного источника и возвращает список чистых ссылок с фрагментами."""
+    configs = []
     try:
-        resp = requests.get(url, timeout=20)
-        if resp.status_code != 200:
-            print(f"⚠️ {url} → статус {resp.status_code}")
-            return []
-        configs = []
-        for line in resp.text.splitlines():
-            parsed = parse_config_line(line)
-            if parsed:
-                configs.append(parsed)
-        return configs
-    except Exception as e:
-        print(f"❌ Ошибка {url}: {e}")
-        return []
+        r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code != 200:
+            return configs
+        found = re.findall(r'(?:vless|vmess|ss|trojan)://[^\s<]+', r.text)
+        configs.extend(found)
+    except:
+        pass
+    return configs
 
-def save_to_drive(content, filename):
-    path = os.path.join(BASE_DIR, filename)
-    with open(path, 'w', encoding='utf-8') as f:
-        f.write(content)
-
-def log_to_sheet(total, cidr_count, unique_sni):
-    path = os.path.join(BASE_DIR, LOG_FILE)
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    needed_header = not os.path.exists(path)
-    with open(path, 'a', encoding='utf-8') as f:
-        if needed_header:
-            f.write("timestamp,total,cidr_count,unique_sni\n")
-        f.write(f"{now},{total},{cidr_count},{unique_sni}\n")
-
+# ==========================================
+# ГЛАВНАЯ ЛОГИКА
+# ==========================================
 def main():
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] 🚀 Сбор конфигов для 🌴ЯлтаВПН")
     all_configs = []
-    url_set = set()
 
-    print(f"🌴 ЯлтаВПН - Курортный ВПН | источников: {len(SOURCES)}")
+    # Параллельная загрузка
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        for result in executor.map(parse_source, SOURCES):
+            all_configs.extend(result)
 
-    # Сбор ВСЕХ конфигов без лимита
-    for url in SOURCES:
-        print(f"📡 Загрузка: {url}")
-        for cfg in fetch_source(url):
-            if cfg['base_url'] not in url_set:
-                url_set.add(cfg['base_url'])
-                all_configs.append(cfg)
+    if not all_configs:
+        print("❌ Не найдено ни одного конфига")
+        return
 
-    now = datetime.now()
-    timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
-    cidr_count = sum(1 for c in all_configs if c['ip'] and is_ip_allowed(c['ip']))
-    unique_sni = len({c['sni'] for c in all_configs})
-    next_update = (now + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+    # Перемешиваем и ограничиваем 3000
+    random.shuffle(all_configs)
+    selected = all_configs[:3000]
 
-    if IS_PUBLIC:
-        announce = (f"🌴 ЯлтаВПН - Курортный ВПН | "
-                    f"конфигов: {len(all_configs)} (CIDR: {cidr_count}) | SNI: {unique_sni} | "
-                    f"обновлено: {timestamp} | след. обновление: {next_update} ⚡️")
-    else:
-        announce = (f"🌴 ЯлтаВПН - Курортный ВПН 🔒PRIVATE | "
-                    f"конфигов: {len(all_configs)} (CIDR: {cidr_count}) | SNI: {unique_sni} | "
-                    f"обновлено: {timestamp} | след. обновление: {next_update} ")
+    final_lines = []
+    hosts_set = set()
+    sni_set = set()
 
-    header = [
-        "#profile-update-interval: 1",
-        "#support-url: https://t.me/YaltaVPN_Obxod",
-        "#profile-title: 🌴ЯлтаВПН - Курортный ВПН",
-        "#hide-settings: 1",
-        ""
-    ]
+    for link in selected:
+        # Извлекаем базовую часть и фрагмент
+        try:
+            base, fragment = link.split("#", 1)
+        except ValueError:
+            base = link
+            fragment = ""
 
-    content = '\n'.join(header)
-    for cfg in all_configs:
-        content += cfg['base_url'] + '#' + cfg['new_name'] + '\n'
+        # Хост
+        host = extract_host(base)
+        if host:
+            hosts_set.add(host)
 
-    save_to_drive(content, CONFIG_FILE)
-    log_to_sheet(len(all_configs), cidr_count, unique_sni)
+        # SNI
+        sni = extract_sni(base)
+        if sni:
+            sni_set.add(sni)
+        sni_text = sni if sni else "Не определён"
 
-    print(f"✅ Сохранено {len(all_configs)} конфигов.")
-    print(f"📁 Результаты в папке: {BASE_DIR}")
+        # Страна по флагу во фрагменте
+        flag, country = get_flag_info(fragment)
+        if flag == "🌐":
+            country_text = "🌐 Не определено"
+        else:
+            country_text = f"{flag} {country}"
+
+        # Имя конфига
+        display_name = f"{country_text} | SNI: {sni_text} | 🌴ЯлтаВПН"
+        safe_name = urllib.parse.quote(display_name, safe='')
+
+        final_lines.append(f"{base}#{safe_name}")
+
+    # Подсчёт статистики
+    total_hosts = len(hosts_set)
+    total_sni = len(sni_set)
+
+    # Вывод описания (для ТГ канала)
+    print("\n" + "="*50)
+    print("🌴ЯлтаВПН - Курортный ВПН")
+    print(f"🌴ЯлтаВПН | CIDR: {total_hosts} | SNI: {total_sni} |")
+    print("📢 ТГ канал: https://t.me/YaltaVPN_Obxod")
+    print("="*50)
+
+    # Сохранение в файл (Base64)
+    content = "\n".join(final_lines)
+    b64 = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+    filename = "YaltaVPN - Subscription.txt"
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(b64)
+
+    print(f"✅ Сохранено {len(final_lines)} конфигов в файл {filename}")
 
 if __name__ == "__main__":
     main()
