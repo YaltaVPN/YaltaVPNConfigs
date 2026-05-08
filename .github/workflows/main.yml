@@ -37,7 +37,7 @@ jobs:
           git config --global user.email "github-actions[bot]@://github.com"
           
           # Добавляем файлы, которые изменил скрипт
-          git add YaltaVPN - Subscription
+          git add YaltaVPN - Subscription.txt
           
           # Делаем коммит. Если изменений нет, скрипт просто пойдет дальше
           git commit -m "🔄 Обновление подписок: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
