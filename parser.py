@@ -8,22 +8,12 @@ from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 
 # ==========================================
-# SOURCES (замените на свои)
+# SOURCES (замени на свои)
 # ==========================================
 SOURCES = [
-    "https://raw.githubusercontent.com/whoahaow/rjsxrd/refs/heads/main/githubmirror/bypass/bypass-all.txt",
-    "https://raw.githubusercontent.com/ShatakVPN/ConfigForge-V2Ray/main/configs/all.txt",
-    "https://raw.githubusercontent.com/ShatakVPN/ConfigForge-V2Ray/main/configs/light.txt",
-    "https://raw.githubusercontent.com/ShatakVPN/ConfigForge-V2Ray/main/configs/vless.txt",
-    "https://raw.githubusercontent.com/MahanKenway/Freedom-V2Ray/main/configs/mix.txt",
-    "https://raw.githubusercontent.com/MahanKenway/Freedom-V2Ray/main/configs/vless.txt",
-    "https://raw.githubusercontent.com/kort0881/vpn-checker-backend/main/checked/RU_Best/ru_white.txt",
-    "https://raw.githubusercontent.com/zieng2/wl/refs/heads/main/vless_lite.txt"
+    "https://raw.githubusercontent.com/...",
+    # добавь остальные URL с конфигами
 ]
-for i in range(1, 23):
-    SOURCES.append (
-        "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/{i}.txt"
-    )
 
 # ==========================================
 # БАЗА ФЛАГОВ
@@ -99,12 +89,10 @@ FLAG_DB = {
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ==========================================
 def extract_host(link):
-    """Извлекает хост (IP или домен) из ссылки конфига."""
     m = re.search(r'@([\w\.\-]+):', link)
     return m.group(1) if m else None
 
 def extract_sni(link):
-    """Извлекает значение параметра sni из URL конфига."""
     try:
         base = link.split("#")[0]
         qs = urlparse(base).query
@@ -114,7 +102,6 @@ def extract_sni(link):
         return None
 
 def get_flag_info(raw_fragment):
-    """Возвращает (флаг, страна) или ('🌐', 'Не определено') по наличию флага в строке."""
     if not raw_fragment:
         return "🌐", "Не определено"
     flags = re.findall(r'[\U0001F1E6-\U0001F1FF]{2}', raw_fragment)
@@ -125,7 +112,6 @@ def get_flag_info(raw_fragment):
     return "🌐", "Не определено"
 
 def parse_source(url):
-    """Скачивает конфиги из одного источника и возвращает список чистых ссылок с фрагментами."""
     configs = []
     try:
         r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
@@ -144,7 +130,6 @@ def main():
     print(f"[{datetime.now().strftime('%H:%M:%S')}] 🚀 Сбор конфигов для 🌴ЯлтаВПН")
     all_configs = []
 
-    # Параллельная загрузка
     with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
         for result in executor.map(parse_source, SOURCES):
             all_configs.extend(result)
@@ -153,7 +138,6 @@ def main():
         print("❌ Не найдено ни одного конфига")
         return
 
-    # Перемешиваем и ограничиваем 3000
     random.shuffle(all_configs)
     selected = all_configs[:3000]
 
@@ -162,56 +146,54 @@ def main():
     sni_set = set()
 
     for link in selected:
-        # Извлекаем базовую часть и фрагмент
         try:
             base, fragment = link.split("#", 1)
         except ValueError:
             base = link
             fragment = ""
 
-        # Хост
         host = extract_host(base)
         if host:
             hosts_set.add(host)
 
-        # SNI
         sni = extract_sni(base)
         if sni:
             sni_set.add(sni)
         sni_text = sni if sni else "Не определён"
 
-        # Страна по флагу во фрагменте
         flag, country = get_flag_info(fragment)
         if flag == "🌐":
             country_text = "🌐 Не определено"
         else:
             country_text = f"{flag} {country}"
 
-        # Имя конфига
         display_name = f"{country_text} | SNI: {sni_text} | 🌴ЯлтаВПН"
         safe_name = urllib.parse.quote(display_name, safe='')
 
         final_lines.append(f"{base}#{safe_name}")
 
-    # Подсчёт статистики
     total_hosts = len(hosts_set)
     total_sni = len(sni_set)
 
-    # Вывод описания (для ТГ канала)
+    # Собираем полный текст с заголовками профиля
+    content = "\n".join(final_lines)
+    full_text = f"""#profile-update-interval: 1
+#support-url: https://t.me/YaltaVPN_Obxod
+#profile-title: 🌴ЯлтаВПН - Курортный ВПН
+#hide-settings: 1
+{content}"""
+
+    b64 = base64.b64encode(full_text.encode("utf-8")).decode("utf-8")
+    filename = "YaltaVPN.txt"
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(b64)
+
     print("\n" + "="*50)
     print("🌴ЯлтаВПН - Курортный ВПН")
     print(f"🌴ЯлтаВПН | CIDR: {total_hosts} | SNI: {total_sni} |")
     print("📢 ТГ канал: https://t.me/YaltaVPN_Obxod")
     print("="*50)
-
-    # Сохранение в файл (Base64)
-    content = "\n".join(final_lines)
-    b64 = base64.b64encode(content.encode("utf-8")).decode("utf-8")
-    filename = "YaltaVPN - Subscription"
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(b64)
-
-    print(f"✅ Сохранено {len(final_lines)} конфигов в файл {filename}")
+    print(f"✅ Сохранено {len(final_lines)} конфигов в файл {filename} (с мета-заголовками в base64)")
 
 if __name__ == "__main__":
     main()
