@@ -33,8 +33,7 @@ jobs:
 
       - name: Commit and Push changes
         run: |
-          git config --global user.name "YaltaVPN"
-          git config --global user.email "YaltaVPN@://github.com"
+          git config --global user.name "YaltaVPN"    
           
           # Добавляем файлы, которые изменил скрипт
           git add YaltaVPN.txt
