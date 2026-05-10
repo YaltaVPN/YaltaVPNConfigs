@@ -5,11 +5,11 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 * * * *' # Обновление каждый час
-  workflow_dispatch: # Кнопка для ручного запуска
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
 permissions:
-  contents: write # КРИТИЧЕСКИ ВАЖНО: Разрешение на запись файлов
+  contents: write
 
 jobs:
   build:
@@ -25,21 +25,15 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: |
-          pip install requests
+        run: pip install requests
 
       - name: Run Parser Script
         run: python parser.py
 
       - name: Commit and Push changes
         run: |
-          git config --global user.name "YaltaVPN"    
-          
-          # Добавляем файлы, которые изменил скрипт
+          git config --global user.name "YaltaVPN"
+          git config --global user.email "yalta-vpn@users.noreply.github.com"
           git add YaltaVPN.txt
-          
-          # Делаем коммит. Если изменений нет, скрипт просто пойдет дальше
-          git commit -m "🔄 Обновление подписок: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
-          
-          # Пушим изменения обратно в основную ветку
+          git diff --cached --quiet || git commit -m "🔄 Обновление: $(date +'%Y-%m-%d_%H:%M')"
           git push origin main
