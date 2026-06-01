@@ -4,6 +4,7 @@ import ipaddress
 import requests
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ===================== ИСТОЧНИКИ =====================
 SOURCES = [
@@ -29,16 +30,13 @@ for i in range(1, 21):
 ALLOWED_CIDRS = []
 WHITELISTED_SNI = []
 IS_PUBLIC = True
+LIMIT = 3000  # <-- Максимальное количество конфигов (задается прямо здесь)
 
-FOLDER_NAME = "CatwhiteVPN"
-CONFIG_FILE = "configs.txt"
-MAX_FILE = "max.txt"
+CONFIG_FILE = "YaltaVPN - Subscription"  
 LOG_FILE = "log.csv"
-BASE_DIR = os.path.join(os.getcwd(), FOLDER_NAME)
-os.makedirs(BASE_DIR, exist_ok=True)
+BASE_DIR = os.path.abspath(os.getcwd())
 
 # ===================== СТРАНЫ =====================
-# Сопоставление эмодзи флага -> двухбуквенный код
 FLAG_TO_CODE = {
     "🇦🇫": "AF", "🇦🇱": "AL", "🇩🇿": "DZ", "🇦🇩": "AD", "🇦🇴": "AO",
     "🇦🇷": "AR", "🇦🇲": "AM", "🇦🇺": "AU", "🇦🇹": "AT", "🇦🇿": "AZ",
@@ -61,7 +59,6 @@ FLAG_TO_CODE = {
     "🇻🇳": "VN",
 }
 
-# Названия стран (рус/англ) -> код
 COUNTRY_NAMES = {
     "россия": "RU", "russia": "RU", "russian": "RU", "ru": "RU",
     "германия": "DE", "germany": "DE", "deutschland": "DE", "de": "DE",
@@ -120,7 +117,6 @@ COUNTRY_NAMES = {
     "андорра": "AD", "andorra": "AD", "ad": "AD",
 }
 
-# Код -> русское название
 CODE_TO_RU = {
     "AF": "Афганистан", "AL": "Албания", "DZ": "Алжир", "AD": "Андорра", "AO": "Ангола",
     "AR": "Аргентина", "AM": "Армения", "AU": "Австралия", "AT": "Австрия", "AZ": "Азербайджан",
@@ -143,13 +139,11 @@ CODE_TO_RU = {
     "VN": "Вьетнам",
 }
 
-# Генерация эмодзи флага по коду страны
 def code_to_flag(code):
     if len(code) != 2:
         return ""
     return chr(ord(code[0]) + 0x1F1E6 - ord('A')) + chr(ord(code[1]) + 0x1F1E6 - ord('A'))
 
-# ------------------------------------------------------------------
 def ip_in_cidr(ip_str, cidr_str):
     try:
         return ipaddress.ip_address(ip_str) in ipaddress.ip_network(cidr_str, strict=False)
@@ -190,31 +184,24 @@ def extract_ip_from_url(url):
     return None
 
 def extract_flag_and_country(comment):
-    # Пытаемся найти эмодзи флага
     flag_match = re.findall(r'[\U0001F1E6-\U0001F1FF]{2}', comment)
     if flag_match:
         flag_emoji = flag_match[0]
         if flag_emoji in FLAG_TO_CODE:
             code = FLAG_TO_CODE[flag_emoji]
             return flag_emoji, CODE_TO_RU.get(code, "🌐 Не определено")
-        else:
-            # флаг есть, но нет в словаре – пока неопознан
-            pass
 
-    # Поиск двухбуквенного кода страны
     code_match = re.search(r'\b([A-Z]{2})\b', comment)
     if code_match:
         code = code_match.group(1).upper()
         if code in CODE_TO_RU:
             return code_to_flag(code), CODE_TO_RU[code]
 
-    # Поиск названия страны в тексте (приводим к нижнему регистру)
     text_lower = comment.lower()
     for name, code in COUNTRY_NAMES.items():
         if name in text_lower:
             return code_to_flag(code), CODE_TO_RU.get(code, "🌐 Не определено")
 
-    # Ничего не найдено
     return "", "🌐 Не определено"
 
 def parse_config_line(line):
@@ -242,7 +229,6 @@ def parse_config_line(line):
     if ip and not is_ip_allowed(ip):
         return None
 
-    # Формируем итоговое имя
     new_name = f"{flag} {country} | SNI: {sni} | 🌴ЯлтаВПН".strip()
     return {
         "base_url": url_part,
@@ -255,7 +241,7 @@ def parse_config_line(line):
 
 def fetch_source(url):
     try:
-        resp = requests.get(url, timeout=20)
+        resp = requests.get(url, timeout=15)
         if resp.status_code != 200:
             print(f"⚠️ {url} → статус {resp.status_code}")
             return []
@@ -268,14 +254,6 @@ def fetch_source(url):
     except Exception as e:
         print(f"❌ Ошибка {url}: {e}")
         return []
-
-def get_max_limit():
-    path = os.path.join(BASE_DIR, MAX_FILE)
-    try:
-        with open(path) as f:
-            return max(int(f.read().strip()), 1)
-    except:
-        return 3000   # <-- лимит по умолчанию 1000
 
 def save_to_drive(content, filename):
     path = os.path.join(BASE_DIR, filename)
@@ -292,22 +270,28 @@ def log_to_sheet(total, cidr_count, unique_sni):
         f.write(f"{now},{total},{cidr_count},{unique_sni}\n")
 
 def main():
-    LIMIT = get_max_limit()
     all_configs = []
     url_set = set()
 
     print(f"🌴 ЯлтаВПН - Курортный ВПН | лимит: {LIMIT} | источников: {len(SOURCES)}")
+    print("📡 Начало параллельной загрузки источников...")
 
-    for url in SOURCES:
-        if len(all_configs) >= LIMIT:
-            break
-        print(f"📡 Загрузка: {url}")
-        for cfg in fetch_source(url):
-            if cfg['base_url'] not in url_set:
-                url_set.add(cfg['base_url'])
-                all_configs.append(cfg)
-                if len(all_configs) >= LIMIT:
-                    break
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_url = {executor.submit(fetch_source, url): url for url in SOURCES}
+        
+        for future in as_completed(future_to_url):
+            url = future_to_url[future]
+            try:
+                configs = future.result()
+                for cfg in configs:
+                    if cfg['base_url'] not in url_set:
+                        url_set.add(cfg['base_url'])
+                        all_configs.append(cfg)
+            except Exception as e:
+                print(f"❌ Ошибка обработки пула для {url}: {e}")
+
+    # Срез по жесткому лимиту из настроек
+    all_configs = all_configs[:LIMIT]
 
     now = datetime.now()
     timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
@@ -327,7 +311,7 @@ def main():
     header = [
         "#profile-update-interval: 1",
         "#support-url: https://t.me/YaltaVPN_Obxod",
-        "#profile-title: 🌴ЯлтаВПН - Курортный ВПН",
+        f"#profile-title: {announce}",
         "#hide-settings: 1",
         ""
     ]
@@ -339,8 +323,8 @@ def main():
     save_to_drive(content, CONFIG_FILE)
     log_to_sheet(len(all_configs), cidr_count, unique_sni)
 
-    print(f"✅ Сохранено {len(all_configs)} конфигов.")
-    print(f"📁 Результаты в папке: {BASE_DIR}")
+    print(f"✅ Успешно сохранено {len(all_configs)} конфигов.")
+    print(f"📁 Результаты сохранены в корень: {BASE_DIR}")
 
 if __name__ == "__main__":
     main()
