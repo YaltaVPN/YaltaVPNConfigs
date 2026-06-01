@@ -30,7 +30,7 @@ for i in range(1, 21):
 ALLOWED_CIDRS = []
 WHITELISTED_SNI = []
 IS_PUBLIC = True
-LIMIT = 3000  # <-- Максимальное количество конфигов (задается прямо здесь)
+LIMIT = 3000  # Жесткий лимит конфигов прямо в коде
 
 CONFIG_FILE = "YaltaVPN - Subscription"  
 LOG_FILE = "log.csv"
@@ -290,7 +290,6 @@ def main():
             except Exception as e:
                 print(f"❌ Ошибка обработки пула для {url}: {e}")
 
-    # Срез по жесткому лимиту из настроек
     all_configs = all_configs[:LIMIT]
 
     now = datetime.now()
