@@ -42,7 +42,7 @@ FLAG_TO_CODE = {
     "🇦🇷": "AR", "🇦🇲": "AM", "🇦🇺": "AU", "🇦🇹": "AT", "🇦🇿": "AZ",
     "🇧🇩": "BD", "🇧🇾": "BY", "🇧🇪": "BE", "🇧🇷": "BR", "🇧🇬": "BG",
     "🇨🇦": "CA", "🇨🇳": "CN", "🇭🇷": "HR", "🇨🇺": "CU", "🇨🇾": "CY",
-    "🇨🇿": "CZ", "🇩🇰": "DK", "🇪🇬": "EG", "🇪🇪": "EE", "🇫🇮": "FI",
+    "🇨🇿": "CZ", "🇩👑": "DK", "🇪🇬": "EG", "🇪🇪": "EE", "🇫🇮": "FI",
     "🇫🇷": "FR", "🇬🇪": "GE", "🇩🇪": "DE", "🇬🇷": "GR", "🇭🇰": "HK",
     "🇭🇺": "HU", "🇮🇸": "IS", "🇮🇳": "IN", "🇮🇩": "ID", "🇮🇷": "IR",
     "🇮🇶": "IQ", "🇮🇪": "IE", "🇮🇱": "IL", "🇮🇹": "IT", "🇯🇵": "JP",
@@ -50,7 +50,7 @@ FLAG_TO_CODE = {
     "🇱🇧": "LB", "🇱🇾": "LY", "🇱🇹": "LT", "🇱🇺": "LU", "🇲🇾": "MY",
     "🇲🇽": "MX", "🇲🇩": "MD", "🇲🇳": "MN", "🇲🇪": "ME", "🇲🇦": "MA",
     "🇳🇱": "NL", "🇳🇿": "NZ", "🇳🇬": "NG", "🇰🇵": "KP", "🇳🇴": "NO",
-    "🇵🇰": "PK", "🇵🇸": "PS", "🇵🇪": "PE", "🇵🇭": "PH", "🇵🇱": "PL",
+    "🇵稳": "PK", "🇵🇸": "PS", "🇵🇪": "PE", "🇵🇭": "PH", "🇵🇱": "PL",
     "🇵🇹": "PT", "🇶🇦": "QA", "🇷🇴": "RO", "🇷🇺": "RU", "🇸🇦": "SA",
     "🇷🇸": "RS", "🇸🇬": "SG", "🇸🇰": "SK", "🇸🇮": "SI", "🇿🇦": "ZA",
     "🇰🇷": "KR", "🇪🇸": "ES", "🇸🇪": "SE", "🇨🇭": "CH", "🇹🇼": "TW",
@@ -241,7 +241,9 @@ def parse_config_line(line):
 
 def fetch_source(url):
     try:
-        resp = requests.get(url, timeout=15)
+        # Добавлен User-Agent для обхода потенциальных блокировок со стороны GitHub к "голым" скриптам
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+        resp = requests.get(url, headers=headers, timeout=15)
         if resp.status_code != 200:
             print(f"⚠️ {url} → статус {resp.status_code}")
             return []
@@ -296,16 +298,16 @@ def main():
     timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
     cidr_count = sum(1 for c in all_configs if c['ip'] and is_ip_allowed(c['ip']))
     unique_sni = len({c['sni'] for c in all_configs})
-    next_update = (now + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
 
+    # Исправлены разорванные многострочные f-строки
     if IS_PUBLIC:
         announce = (f"🌴 ЯлтаВПН - Курортный ВПН | "
                     f"конфигов: {len(all_configs)} (CIDR: {cidr_count}) | SNI: {unique_sni} | "
-                    f"обновлено: {timestamp} 
+                    f"обновлено: {timestamp}")
     else:
         announce = (f"🌴 ЯлтаВПН - Курортный ВПН 🔒PRIVATE | "
                     f"конфигов: {len(all_configs)} (CIDR: {cidr_count}) | SNI: {unique_sni} | "
-                    f"обновлено: {timestamp} 
+                    f"обновлено: {timestamp}")
 
     header = [
         "#profile-update-interval: 1",
