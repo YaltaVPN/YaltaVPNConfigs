@@ -301,11 +301,11 @@ def main():
     if IS_PUBLIC:
         announce = (f"🌴 ЯлтаВПН - Курортный ВПН | "
                     f"конфигов: {len(all_configs)} (CIDR: {cidr_count}) | SNI: {unique_sni} | "
-                    f"обновлено: {timestamp} | след. обновление: {next_update} ⚡️")
+                    f"обновлено: {timestamp} 
     else:
         announce = (f"🌴 ЯлтаВПН - Курортный ВПН 🔒PRIVATE | "
                     f"конфигов: {len(all_configs)} (CIDR: {cidr_count}) | SNI: {unique_sni} | "
-                    f"обновлено: {timestamp} | след. обновление: {next_update} ")
+                    f"обновлено: {timestamp} 
 
     header = [
         "#profile-update-interval: 1",
