@@ -1,0 +1,270 @@
+
+
+on:
+  push:
+    paths:
+      - 'links.txt'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  check-and-save:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "singbox2proxy[all]"
+
+      - name: Sanitize and Clean Links
+        run: |
+          cat << 'EOF' > sanitize.py
+          import base64
+          import urllib.parse
+          import os
+
+          supported_ss_methods = {
+              'aes-128-gcm', 'aes-192-gcm', 'aes-256-gcm', 
+              'chacha20-ietf-poly1305', 'xchacha20-ietf-poly1305', 
+              '2022-blake3-aes-128-gcm', '2022-blake3-aes-256-gcm', 
+              '2022-blake3-chacha20-poly1305'
+          }
+
+          def decode_b64(s):
+              s = s.strip()
+              s += '=' * (-len(s) % 4)
+              try:
+                  return base64.b64decode(s).decode('utf-8', errors='ignore')
+              except:
+                  return ''
+
+          def process_ss_link(link):
+              url_part = link.split('#')[0]
+              tag = link.split('#')[1] if '#' in link else ''
+              payload = url_part[5:]
+              
+              method = ''
+              new_payload = payload
+
+              if '@' in payload:
+                  userinfo, host = payload.split('@', 1)
+                  if ':' in userinfo and not any(c in userinfo for c in ['/', '+', '=']):
+                      method = userinfo.split(':', 1)[0].lower()
+                      if method == 'chacha20-poly1305':
+                          userinfo = 'chacha20-ietf-poly1305' + userinfo[17:]
+                          method = 'chacha20-ietf-poly1305'
+                      new_payload = f'{userinfo}@{host}'
+                  else:
+                      decoded = decode_b64(userinfo)
+                      if ':' in decoded:
+                          method = decoded.split(':', 1)[0].lower()
+                          if method == 'chacha20-poly1305':
+                              decoded = 'chacha20-ietf-poly1305' + decoded[17:]
+                              method = 'chacha20-ietf-poly1305'
+                          new_userinfo = base64.b64encode(decoded.encode('utf-8')).decode('utf-8').rstrip('=')
+                          new_payload = f'{new_userinfo}@{host}'
+              else:
+                  decoded = decode_b64(payload)
+                  if decoded and '@' in decoded:
+                      userinfo, host = decoded.split('@', 1)
+                      if ':' in userinfo:
+                          method = userinfo.split(':', 1)[0].lower()
+                          if method == 'chacha20-poly1305':
+                              userinfo = 'chacha20-ietf-poly1305' + userinfo[17:]
+                              method = 'chacha20-ietf-poly1305'
+                          new_decoded = f'{userinfo}@{host}'
+                          new_payload = base64.b64encode(new_decoded.encode('utf-8')).decode('utf-8').rstrip('=')
+                  elif decoded and ':' in decoded:
+                      method = decoded.split(':', 1)[0].lower()
+                      if method == 'chacha20-poly1305':
+                          decoded = 'chacha20-ietf-poly1305' + decoded[17:]
+                          method = 'chacha20-ietf-poly1305'
+                      new_payload = base64.b64encode(decoded.encode('utf-8')).decode('utf-8').rstrip('=')
+
+              if method and method not in supported_ss_methods:
+                  print(f"Skipping: Legacy Shadowsocks method '{method}' is unsupported")
+                  return None
+
+              return f'ss://{new_payload}' + (f'#{tag}' if tag else '')
+
+          if not os.path.exists('links.txt'):
+              print('links.txt not found')
+              exit(0)
+
+          with open('links.txt', 'r', encoding='utf-8') as f:
+              lines = f.read().splitlines()
+
+          clean_lines = []
+          for line in lines:
+              line = line.strip()
+              if not line:
+                  continue
+              if line.startswith('ss://'):
+                  sanitized = process_ss_link(line)
+                  if sanitized:
+                      clean_lines.append(sanitized)
+              else:
+                  clean_lines.append(line)
+
+          with open('links.txt', 'w', encoding='utf-8') as f:
+              f.write('\n'.join(clean_lines) + '\n')
+          EOF
+          python sanitize.py
+          rm sanitize.py
+
+      - name: Run Custom Python Checker
+        run: |
+          cat << 'EOF' > check.py
+          import os
+          import sys
+          import json
+          import socket
+          import base64
+          import urllib.parse
+          from singbox2proxy import SingBoxBatch
+
+          # Ограничиваем время ожидания DNS-запросов
+          socket.setdefaulttimeout(1.0)
+
+          def parse_vmess_b64(url):
+              try:
+                  payload = url[8:].split('#')[0]
+                  payload += '=' * (-len(payload) % 4)
+                  data = json.loads(base64.b64decode(payload).decode('utf-8', errors='ignore'))
+                  return data
+              except:
+                  return {}
+
+          def get_desc_b64(proxy_url, latency):
+              try:
+                  server_address = ''
+                  sni = ''
+                  
+                  # Парсинг VMess
+                  if proxy_url.startswith('vmess://') and '@' not in proxy_url:
+                      vmess_data = parse_vmess_b64(proxy_url)
+                      server_address = vmess_data.get('add', '')
+                      sni = vmess_data.get('sni', '') or vmess_data.get('host', '')
+                  else:
+                      parsed = urllib.parse.urlparse(proxy_url)
+                      server_address = parsed.hostname or ''
+                      query_params = urllib.parse.parse_qs(parsed.query)
+                      sni = query_params.get('sni', [''])[0] or query_params.get('peer', [''])[0] or query_params.get('host', [''])[0]
+                  
+                  # Определение IP сервера
+                  ip = ''
+                  if server_address:
+                      try:
+                          ip = socket.gethostbyname(server_address)
+                      except Exception:
+                          ip = server_address
+                  else:
+                      ip = '-'
+
+                  # Определение SNI
+                  if not sni:
+                      if server_address and any(c.isalpha() for c in server_address):
+                          sni = server_address
+                      else:
+                          sni = '-'
+
+                  # Определение цветного эмодзи по пингу
+                  if latency < 120:
+                      emoji = "🟢"
+                  elif latency < 200:
+                      emoji = "🟡"
+                  else:
+                      emoji = "🔴"
+
+                  desc_str = f"{emoji} SNI: {sni} | IP: {ip}"
+                  desc_b64 = base64.b64encode(desc_str.encode('utf-8')).decode('utf-8')
+                  return desc_b64
+              except Exception as e:
+                  return base64.b64encode(f"🔴 Ping: {latency}ms".encode('utf-8')).decode('utf-8')
+
+          def append_description(proxy_url, desc_b64):
+              # Добавляем параметр строго в самый конец строки (после #названия)
+              if '#' in proxy_url:
+                  return f"{proxy_url}?serverDescription={desc_b64}"
+              else:
+                  if '?' in proxy_url:
+                      return f"{proxy_url}&serverDescription={desc_b64}"
+                  else:
+                      return f"{proxy_url}?serverDescription={desc_b64}"
+
+          def main():
+              if not os.path.exists("links.txt"):
+                  print("links.txt not found!")
+                  sys.exit(1)
+
+              with open("links.txt", "r", encoding="utf-8") as f:
+                  urls = [line.strip() for line in f if line.strip()]
+
+              print(f"Loaded {len(urls)} sanitized proxies to check...")
+              valid_proxies = []
+
+              with SingBoxBatch(urls, batch_size=30, log_level="error") as batch:
+                  for proxy in batch:
+                      try:
+                          resp = proxy.get("http://www.gstatic.com/generate_204", timeout=2)
+                          if resp.status_code == 204:
+                              latency = int(resp.elapsed.total_seconds() * 1000)
+                              print(f"[PASS] {proxy.protocol:<6} | Ping: {latency:>4}ms | {proxy.url[:40]}...")
+                              
+                              desc_b64 = get_desc_b64(proxy.url, latency)
+                              final_url = append_description(proxy.url, desc_b64)
+                              
+                              valid_proxies.append((final_url, latency))
+                          else:
+                              print(f"[FAIL] {proxy.protocol:<6} | Status: {resp.status_code} | {proxy.url[:40]}...")
+                      except Exception as e:
+                          err_msg = str(e).split('\n')[0]
+                          print(f"[DEAD] {proxy.protocol:<6} | Error: {err_msg[:40]} | {proxy.url[:40]}...")
+
+              # Сортировка по пингу
+              valid_proxies.sort(key=lambda x: x[1])
+
+              # Запись результата с заголовками
+              with open("valid.txt", "w", encoding="utf-8") as f:
+                  f.write("#profile-title: base64:8J+boe+4jyBWZWFyeVZQTiB8INCQ0LLRgtC+LdC+0LHRhdC+0LTRiw==\n")
+                  f.write("#announce: base64:4q2QINCQ0LLRgtC+0L7QsdC90L7QstC70Y/RjtGJ0LjQtdGB0Y8g0LrQvtC90YTQuNCz0Lgg0L/QvtC0INC70Y7QsdGL0LUg0LfQsNC00LDRh9C4IPCfj7PvuI8=\n")
+                  f.write("#profile-update-interval: 1\n")
+                  f.write("support-url: https://t.me/VearyTry\n\n")
+                  for url, _ in valid_proxies:
+                      f.write(url + "\n")
+
+              print(f"Done! Saved {len(valid_proxies)} working proxies to valid.txt")
+
+          if __name__ == "__main__":
+              main()
+          EOF
+          
+          python check.py
+          rm check.py
+
+      - name: Commit and Push valid.txt
+        run: |
+          touch valid.txt
+          git config --local user.email "yalta-vpn@users.noreply.github.com"
+          git config --local user.name "YaltaVPN"
+          git add valid.txt
+          if git diff --staged --quiet; then
+            echo "Нет изменений в valid.txt"
+          else
+            git commit -m "Auto-update valid.txt [skip ci]"
+            git checkout -- links.txt
+            git pull --rebase origin main
+            git push origin main
+          fi
