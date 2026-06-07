@@ -3,7 +3,7 @@
 on:
   push:
     paths:
-      - 'links.txt'
+      - 'YaltaVPN - Subscription'
   workflow_dispatch:
   schedule:
     - cron: '0 */6 * * *'
@@ -103,7 +103,7 @@ jobs:
               print('links.txt not found')
               exit(0)
 
-          with open('links.txt', 'r', encoding='utf-8') as f:
+          with open('YaltaVPN - Subscription', 'r', encoding='utf-8') as f:
               lines = f.read().splitlines()
 
           clean_lines = []
@@ -118,7 +118,7 @@ jobs:
               else:
                   clean_lines.append(line)
 
-          with open('links.txt', 'w', encoding='utf-8') as f:
+          with open('YaltaVPN - Subscription', 'w', encoding='utf-8') as f:
               f.write('\n'.join(clean_lines) + '\n')
           EOF
           python sanitize.py
@@ -206,10 +206,10 @@ jobs:
 
           def main():
               if not os.path.exists("links.txt"):
-                  print("links.txt not found!")
+                  print("YaltaVPN - Subscription not found!")
                   sys.exit(1)
 
-              with open("links.txt", "r", encoding="utf-8") as f:
+              with open("YaltaVPN - Subscription", "r", encoding="utf-8") as f:
                   urls = [line.strip() for line in f if line.strip()]
 
               print(f"Loaded {len(urls)} sanitized proxies to check...")
@@ -237,7 +237,7 @@ jobs:
               valid_proxies.sort(key=lambda x: x[1])
 
               # Запись результата с заголовками
-              with open("valid.txt", "w", encoding="utf-8") as f:
+              with open("YaltaVPN - Checked", "w", encoding="utf-8") as f:
                   f.write("#profile-title: base64:8J+boe+4jyBWZWFyeVZQTiB8INCQ0LLRgtC+LdC+0LHRhdC+0LTRiw==\n")
                   f.write("#announce: base64:4q2QINCQ0LLRgtC+0L7QsdC90L7QstC70Y/RjtGJ0LjQtdGB0Y8g0LrQvtC90YTQuNCz0Lgg0L/QvtC0INC70Y7QsdGL0LUg0LfQsNC00LDRh9C4IPCfj7PvuI8=\n")
                   f.write("#profile-update-interval: 1\n")
@@ -254,7 +254,7 @@ jobs:
           python check.py
           rm check.py
 
-      - name: Commit and Push valid.txt
+      - name: Commit and Push YaltaVPN - Cheked
         run: |
           touch valid.txt
           git config --local user.email "yalta-vpn@users.noreply.github.com"
