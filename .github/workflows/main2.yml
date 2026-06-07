@@ -40,7 +40,7 @@ jobs:
           git config --global user.email "yalta-vpn@users.noreply.github.com"
           
           # Указываем имя нового файла (в кавычках из-за пробелов) и лог
-          git add "YaltaVPN - Subscription For Mobile" log.csv
+          git add "YaltaVPN - Subscription For Mobile" log2.csv
           
           # Проверяем изменения и отправляем их на GitHub
           git diff --cached --quiet || git commit -m "🔄 Обновление: $(date +'%Y-%m-%d_%H:%M')"
