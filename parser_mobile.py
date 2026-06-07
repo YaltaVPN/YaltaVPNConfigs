@@ -33,7 +33,7 @@ IS_PUBLIC = True
 LIMIT = 100  # Жесткий лимит конфигов прямо в коде
 
 CONFIG_FILE = "YaltaVPN - Subscription For Mobile"  
-LOG_FILE = "log.csv"
+LOG_FILE = "log2.csv"
 BASE_DIR = os.path.abspath(os.getcwd())
 
 # ===================== СТРАНЫ =====================
