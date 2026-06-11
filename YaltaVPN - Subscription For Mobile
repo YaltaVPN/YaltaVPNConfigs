@@ -1,6 +1,6 @@
 #profile-update-interval: 1
 #support-url: https://t.me/YaltaVPN_Obxod
-#profile-title: 🌴 ЯлтаВПН - Курортный ВПН |📱 Подписка для телефонов | конфигов: 100 (CIDR: 64) | SNI: 45 | обновлено: 2026-06-10 22:45:09
+#profile-title: 🌴 ЯлтаВПН - Курортный ВПН |📱 Подписка для телефонов | конфигов: 100 (CIDR: 64) | SNI: 45 | обновлено: 2026-06-11 00:06:11
 #hide-settings: 1
 vless://dc22c1b5-ea27-4d89-89ae-c0580ed94ca5@212.113.120.126:443?type=tcp&headerType=none&security=reality&encryption=none&sni=ru7.cdn-global.pro&fp=firefox&pbk=h18Rbgv9RV558p-9Pl4g_--jJjXlTZL0-jHqNK5M_n4&sid=2b8c3e90e14740d2&flow=xtls-rprx-vision#🇷🇺 Россия | SNI: ru7.cdn-global.pro | 🌴ЯлтаВПН
 vless://cc5201c6-b6b9-4065-adad-ab6d17958b94@51.250.8.143:515?encryption=none&type=xhttp&security=reality&path=%2Fapi%2Fads&mode=auto&extra=null&fp=firefox&sni=ads.x5.ru&pbk=Ki5cLtYl3SqC-on306jRNRtr-saBbE4ntETcFxXjPSM&sid=9759b96f487c#🇷🇺 Россия | SNI: ads.x5.ru | 🌴ЯлтаВПН
